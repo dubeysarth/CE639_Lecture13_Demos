@@ -71,7 +71,9 @@ body {
   margin-bottom: 8px;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   margin: 0;
   line-height: 1.1;
 }
@@ -369,7 +371,7 @@ select {
 
 .bottom-grid {
   display: grid;
-  grid-template-columns: 1.35fr 1fr 1fr;
+  grid-template-columns: 1.35fr 1fr;
   gap: 18px;
   margin-top: 18px;
 }
@@ -559,8 +561,13 @@ svg text {
 }
 
 @keyframes arrowFlow {
-  from { stroke-dashoffset: 0; }
-  to { stroke-dashoffset: -30; }
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -30;
+  }
 }
 
 @media (max-width: 1320px) {

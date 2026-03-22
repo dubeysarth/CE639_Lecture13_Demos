@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Transformer Encoder–Decoder for 7-Day Streamflow Forecasting</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
   <div class="page-shell">
     <header class="hero panel">
@@ -118,7 +120,8 @@
       <section class="panel main-panel">
         <div class="panel-header">
           <h2>Architecture diagram</h2>
-          <p>Source tokens flow through the encoder; target positions move through a masked decoder and cross-attend to encoder memory.</p>
+          <p>Source tokens flow through the encoder; target positions move through a masked decoder and cross-attend to
+            encoder memory.</p>
         </div>
         <div id="architecturePanel" class="svg-wrap architecture-wrap" aria-label="Architecture diagram"></div>
       </section>
@@ -168,32 +171,14 @@
       <section class="panel forecast-panel">
         <div class="panel-header">
           <h2>7-day forecast panel</h2>
-          <p>The trajectory is deterministic and designed to depend on an older rainfall pulse plus recent wetness memory.</p>
+          <p>The trajectory is deterministic and designed to depend on an older rainfall pulse plus recent wetness
+            memory.</p>
         </div>
         <div id="forecastPanel" class="svg-wrap forecast-wrap"></div>
         <p id="forecastCaption" class="caption"></p>
       </section>
 
-      <section class="panel class-strip">
-        <div class="panel-header">
-          <h2>Try this in class</h2>
-          <p>Use these prompts to turn the walkthrough into a discussion or whiteboard exercise.</p>
-        </div>
-        <div class="prompt-list">
-          <div class="prompt-card">
-            <strong>Prompt 1</strong>
-            <p>Which encoder days should forecast day 1 attend to most strongly after a late storm pulse?</p>
-          </div>
-          <div class="prompt-card">
-            <strong>Prompt 2</strong>
-            <p>How would the decoder mask change if you predicted 14 days instead of 7 days?</p>
-          </div>
-          <div class="prompt-card">
-            <strong>Prompt 3</strong>
-            <p>What hydrological information is lost if positional encoding is removed from the source sequence?</p>
-          </div>
-        </div>
-      </section>
+
 
       <section class="panel teacher-forcing-panel">
         <div class="panel-header">
@@ -212,7 +197,8 @@
             <h3>Inference mode</h3>
             <p>
               The decoder has only what it has already generated. Forecast day <span id="teacherStep">1</span> can use
-              source memory plus generated target history up to that step, so uncertainty can accumulate across the horizon.
+              source memory plus generated target history up to that step, so uncertainty can accumulate across the
+              horizon.
             </p>
           </div>
         </div>
@@ -222,4 +208,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>
