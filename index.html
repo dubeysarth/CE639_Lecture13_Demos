@@ -90,14 +90,14 @@
         .wrapper {
             position: relative;
             z-index: 1;
-            max-width: 1280px;
+            max-width: 1600px;
             margin: 0 auto;
-            padding: 0 24px;
+            padding: 0 12px;
         }
 
         /* ── Header ─────────────────────────────────────── */
         header {
-            padding: 56px 0 32px;
+            padding: 28px 0 16px;
             text-align: center;
         }
 
@@ -127,11 +127,11 @@
         }
 
         header p.subtitle {
-            font-size: 1.05rem;
+            font-size: 0.97rem;
             color: var(--text-muted);
             max-width: 580px;
-            margin: 0 auto 36px;
-            line-height: 1.65;
+            margin: 0 auto 20px;
+            line-height: 1.6;
         }
 
         /* ── Set tabs ───────────────────────────────────── */
@@ -139,7 +139,7 @@
             display: flex;
             justify-content: center;
             gap: 8px;
-            margin-bottom: 40px;
+            margin-bottom: 18px;
         }
 
         .tab-btn {
@@ -192,8 +192,8 @@
         /* ── Main two-panel layout ──────────────────────── */
         .main-layout {
             display: grid;
-            grid-template-columns: 320px 1fr;
-            gap: 20px;
+            grid-template-columns: 260px 1fr;
+            gap: 12px;
             align-items: start;
         }
 
@@ -337,7 +337,7 @@
             border: 1.5px solid var(--border);
             display: flex;
             flex-direction: column;
-            min-height: 680px;
+            min-height: calc(100vh - 220px);
             box-shadow: 0 4px 24px var(--shadow);
         }
 
@@ -414,7 +414,7 @@
             width: 100%;
             flex: 1;
             border: none;
-            min-height: 640px;
+            min-height: calc(100vh - 260px);
             background: #fff;
             display: block;
         }
