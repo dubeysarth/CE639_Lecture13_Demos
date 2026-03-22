@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Positional Encoding Visualizer — Hydrological Cycles</title>
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">Lecture 13 — Demo 3</p>
+                <h1>Positional Encoding &amp; Hydrological Cycles</h1>
+                <p class="hero-copy">
+                    Transformers have no built-in notion of time order. <strong>Sinusoidal positional encodings</strong>
+                    inject temporal structure by assigning each position a unique signature across
+                    <em>d</em> dimensions. Low-frequency dimensions capture seasonal cycles; high-frequency
+                    ones mark individual days.
+                </p>
+                <div class="hero-story">
+                    <div class="story-label">Hydrological Relevance</div>
+                    <div class="story-copy">
+                        Dim 0 oscillates every ~6 positions — encoding diurnal PET cycles.
+                        Dim 2 has a period of ~40 days — capturing monsoon onset.
+                        Dim 4 (period ~250 days) separates wet from dry seasons.
+                        The model never sees a calendar — it infers seasonality purely from these waveforms.
+                    </div>
+                </div>
+            </div>
+            <div class="hero-note">
+                <div class="note-pill">Interactive heatmap</div>
+                <div class="note-pill">Cosine similarity</div>
+                <div class="note-pill">No libraries</div>
+                <div class="note-pill">Lecture 13 · Slides 19–24</div>
+            </div>
+        </header>
+
+        <!-- Controls -->
+        <section class="controls-card">
+            <div class="controls-header">
+                <div>
+                    <h2>Controls</h2>
+                    <p class="controls-copy">Adjust sequence length, model dimension, and explore individual dimensions.
+                    </p>
+                </div>
+                <div class="button-row">
+                    <button id="resetBtn" type="button">Reset Defaults</button>
+                </div>
+            </div>
+            <div class="controls-grid">
+                <label class="control">
+                    <span class="control-label">Sequence Length (L days)</span>
+                    <span id="seqLenValue" class="control-value">90</span>
+                    <input id="seqLenSlider" type="range" min="30" max="365" step="5" value="90" />
+                </label>
+                <label class="control">
+                    <span class="control-label">d_model</span>
+                    <span id="dModelValue" class="control-value">64</span>
+                    <input id="dModelSlider" type="range" min="16" max="256" step="16" value="64" />
+                </label>
+                <label class="control">
+                    <span class="control-label">Highlight Dimension</span>
+                    <span id="dimValue" class="control-value">Dim 0</span>
+                    <input id="dimSlider" type="range" min="0" max="15" step="1" value="0" />
+                </label>
+                <label class="control">
+                    <span class="control-label">Encoding Type</span>
+                    <span id="encTypeValue" class="control-value">Sinusoidal</span>
+                    <div class="segmented" role="group">
+                        <button id="encSin" class="segmented-btn active" type="button">Sinusoidal</button>
+                        <button id="encLearned" class="segmented-btn" type="button">Learned (init)</button>
+                    </div>
+                </label>
+            </div>
+            <div class="prompt-grid">
+                <article class="prompt-card">
+                    <div class="prompt-title">Try 1: Annual Periodicity</div>
+                    <p class="prompt-copy">Set L=365 days. In the similarity matrix, Day 1 and Day 182 appear similar —
+                        the encoding naturally represents the half-year mark in a wet-dry cycle.</p>
+                </article>
+                <article class="prompt-card">
+                    <div class="prompt-title">Try 2: Dimension Waveforms</div>
+                    <p class="prompt-copy">Drag the "Highlight Dimension" slider from 0 to 8. Watch the period grow —
+                        Dim 0 captures days, Dim 4 captures weeks, Dim 8+ captures seasons.</p>
+                </article>
+                <article class="prompt-card">
+                    <div class="prompt-title">Try 3: Sinusoidal vs. Learned</div>
+                    <p class="prompt-copy">Switch to "Learned (init)". The random initialization has no structure — it
+                        cannot generalize beyond training length, unlike sinusoidal encodings.</p>
+                </article>
+            </div>
+        </section>
+
+        <!-- Metrics -->
+        <section class="metrics-grid">
+            <article class="metric-card">
+                <div class="metric-label">Sequence Length L</div>
+                <div id="metricL" class="metric-value">90</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">d_model</div>
+                <div id="metricD" class="metric-value">64</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Highlighted Dim Period</div>
+                <div id="metricPeriod" class="metric-value">—</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Similarity(Day1, Day180)</div>
+                <div id="metricSim180" class="metric-value">—</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">PE Total Range (max-min)</div>
+                <div id="metricRange" class="metric-value">2.00</div>
+            </article>
+        </section>
+
+        <!-- Dashboard -->
+        <section class="dashboard">
+            <div class="viz-col">
+                <!-- Main PE heatmap -->
+                <article class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Positional Encoding Heatmap</h2>
+                            <p class="panel-copy" id="heatmapNote"></p>
+                        </div>
+                    </div>
+                    <svg id="peHeatmap" class="main-svg" viewBox="0 0 760 220"></svg>
+                </article>
+                <!-- Cosine similarity matrix -->
+                <article class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Position Similarity Matrix</h2>
+                            <p class="panel-copy">Cosine similarity cos(PE_i, PE_j) — dark = similar positions; bright =
+                                dissimilar. Positions with similar PE will attend to each other more easily.</p>
+                        </div>
+                    </div>
+                    <svg id="simMatrix" class="main-svg" viewBox="0 0 760 240"></svg>
+                </article>
+                <!-- Highlighted waveform -->
+                <article class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Highlighted Dimension Waveform</h2>
+                            <p class="panel-copy" id="waveNote"></p>
+                        </div>
+                    </div>
+                    <svg id="waveform" class="main-svg" viewBox="0 0 760 110"></svg>
+                </article>
+            </div>
+
+            <div class="side-col">
+                <!-- Math panel -->
+                <article class="panel math-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Math at the Current Setting</h2>
+                            <p class="panel-copy">Sinusoidal PE formula with live period calculations.</p>
+                        </div>
+                    </div>
+                    <div class="math-block">
+                        <div class="math-kicker">Even Dimensions (sin)</div>
+                        <div id="mathEven" class="math-display"></div>
+                    </div>
+                    <div class="math-block">
+                        <div class="math-kicker">Odd Dimensions (cos)</div>
+                        <div id="mathOdd" class="math-display"></div>
+                    </div>
+                    <div class="math-block">
+                        <div class="math-kicker">Highlighted Dimension</div>
+                        <div id="mathDim" class="math-display"></div>
+                    </div>
+                </article>
+
+                <!-- Interpretation -->
+                <article class="panel insight-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Hydrological Insight</h2>
+                        </div>
+                    </div>
+                    <div id="interpretation" class="insight-copy"></div>
+                </article>
+
+                <!-- Period table -->
+                <article class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Dimension Periods</h2>
+                            <p class="panel-copy">First 8 even dimensions and their time-scale significance.</p>
+                        </div>
+                    </div>
+                    <div id="periodTable" class="period-table"></div>
+                </article>
+            </div>
+        </section>
+
+        <footer class="site-footer">
+            CE 639: AI for Civil Engineering — Attention Mechanisms &amp; Transformers · Lecture 13
+        </footer>
+    </div>
+    <script src="./app.js"></script>
+</body>
+
+</html>

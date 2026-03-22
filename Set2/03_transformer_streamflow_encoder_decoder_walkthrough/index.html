@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transformer Encoder–Decoder for 7-Day Streamflow Forecasting</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero panel">
+      <div class="hero-main">
+        <div class="eyebrow">CE 639 • Standalone browser demo</div>
+        <h1>Transformer Encoder–Decoder for 7-Day Streamflow Forecasting</h1>
+        <p class="lede">
+          This walkthrough follows one deterministic forecasting problem: <strong>30 days</strong> of
+          hydro-meteorological history enter the encoder, and the decoder produces a
+          <strong>7-day streamflow forecast</strong>. Step through the pipeline to see where embeddings,
+          positional encoding, masking, self-attention, cross-attention, and output projection enter the story.
+        </p>
+        <div class="pill-row">
+          <span class="pill">Deterministic tensors</span>
+          <span class="pill">No external libraries</span>
+          <span class="pill">Built for CE 639</span>
+          <span class="pill">Open index.html directly</span>
+        </div>
+      </div>
+      <aside class="story-card">
+        <h2>Why this architecture mattered</h2>
+        <p>
+          Recurrent models compress long hydrological histories into a narrow hidden-state bottleneck.
+          The original Transformer replaced that serial bottleneck with direct token-to-token attention,
+          making long-range rainfall and wetness dependencies easier to access.
+        </p>
+        <p>
+          But attention alone is not enough. The model still needs <strong>positional encoding</strong> to know
+          which storm came first, and the decoder still needs a <strong>causal mask</strong> so forecast day 3
+          cannot peek at forecast day 6 during training.
+        </p>
+      </aside>
+    </header>
+
+    <section class="controls panel">
+      <div class="controls-top">
+        <div class="button-group">
+          <button id="resetBtn" class="btn btn-secondary">Reset</button>
+          <button id="prevBtn" class="btn btn-secondary">Prev phase</button>
+          <button id="playBtn" class="btn btn-primary">Play</button>
+          <button id="nextBtn" class="btn btn-secondary">Next phase</button>
+        </div>
+        <div class="phase-control">
+          <label for="phaseSlider">Phase</label>
+          <input id="phaseSlider" type="range" min="0" max="7" step="1" value="0" />
+          <div id="phaseTicks" class="phase-ticks"></div>
+        </div>
+      </div>
+
+      <div class="controls-grid">
+        <label class="toggle-card">
+          <span>Mode</span>
+          <button id="modeToggle" class="toggle-pill" aria-pressed="false">
+            <span class="toggle-on">Training mode</span>
+            <span class="toggle-off">Inference mode</span>
+          </button>
+        </label>
+
+        <label class="toggle-card">
+          <span>Tensor annotation</span>
+          <button id="shapesToggle" class="toggle-pill is-on" aria-pressed="true">
+            <span class="toggle-on">Show tensor shapes</span>
+            <span class="toggle-off">Hide tensor shapes</span>
+          </button>
+        </label>
+
+        <label class="toggle-card">
+          <span>Mask overlay</span>
+          <button id="maskToggle" class="toggle-pill is-on" aria-pressed="true">
+            <span class="toggle-on">Show causal mask overlay</span>
+            <span class="toggle-off">Hide causal mask overlay</span>
+          </button>
+        </label>
+
+        <label class="selector-card" for="decoderStepSelect">
+          <span>Decoder step</span>
+          <select id="decoderStepSelect"></select>
+        </label>
+      </div>
+    </section>
+
+    <section class="metrics-row">
+      <div class="metric-card panel">
+        <div class="metric-label">Current phase</div>
+        <div id="metricPhase" class="metric-value">Raw inputs</div>
+      </div>
+      <div class="metric-card panel">
+        <div class="metric-label">Selected decoder step</div>
+        <div id="metricStep" class="metric-value">1 / 7</div>
+      </div>
+      <div class="metric-card panel">
+        <div class="metric-label">Active tensor shape</div>
+        <div id="metricShape" class="metric-value mono">[30 × 4]</div>
+      </div>
+      <div class="metric-card panel">
+        <div class="metric-label">Visible context length</div>
+        <div id="metricContext" class="metric-value">30 source days</div>
+      </div>
+      <div class="metric-card panel">
+        <div class="metric-label">Future leakage blocked?</div>
+        <div id="metricLeakage" class="metric-value">Encoder only</div>
+      </div>
+      <div class="metric-card panel">
+        <div class="metric-label">Approx. attention cost</div>
+        <div id="metricCost" class="metric-value mono">O(30²) ≈ 900 scores</div>
+      </div>
+    </section>
+
+    <main class="main-grid">
+      <section class="panel main-panel">
+        <div class="panel-header">
+          <h2>Architecture diagram</h2>
+          <p>Source tokens flow through the encoder; target positions move through a masked decoder and cross-attend to encoder memory.</p>
+        </div>
+        <div id="architecturePanel" class="svg-wrap architecture-wrap" aria-label="Architecture diagram"></div>
+      </section>
+
+      <section class="panel main-panel">
+        <div class="panel-header">
+          <h2>Active computation</h2>
+          <p id="activePanelTitle">Raw hydrological inputs</p>
+        </div>
+        <div id="activeComputationPanel" class="svg-wrap active-wrap" aria-live="polite"></div>
+      </section>
+
+      <aside class="panel explanation-panel">
+        <div class="panel-header">
+          <h2>Explanation rail</h2>
+          <p>Equation, tensor shape, intuitive meaning, and hydrology-specific interpretation for the active stage.</p>
+        </div>
+
+        <div class="explanation-block">
+          <h3>Equation</h3>
+          <pre id="equationBlock" class="equation mono"></pre>
+        </div>
+
+        <div class="explanation-block">
+          <h3>Tensor shape</h3>
+          <div id="shapeBlock" class="shape-block mono"></div>
+        </div>
+
+        <div class="explanation-block">
+          <h3>Plain-English interpretation</h3>
+          <p id="plainBlock"></p>
+        </div>
+
+        <div class="explanation-block">
+          <h3>Hydrology interpretation</h3>
+          <p id="hydroBlock"></p>
+        </div>
+
+        <div class="explanation-block">
+          <h3>Why this matters</h3>
+          <p id="whyBlock"></p>
+        </div>
+      </aside>
+    </main>
+
+    <section class="bottom-grid">
+      <section class="panel forecast-panel">
+        <div class="panel-header">
+          <h2>7-day forecast panel</h2>
+          <p>The trajectory is deterministic and designed to depend on an older rainfall pulse plus recent wetness memory.</p>
+        </div>
+        <div id="forecastPanel" class="svg-wrap forecast-wrap"></div>
+        <p id="forecastCaption" class="caption"></p>
+      </section>
+
+      <section class="panel class-strip">
+        <div class="panel-header">
+          <h2>Try this in class</h2>
+          <p>Use these prompts to turn the walkthrough into a discussion or whiteboard exercise.</p>
+        </div>
+        <div class="prompt-list">
+          <div class="prompt-card">
+            <strong>Prompt 1</strong>
+            <p>Which encoder days should forecast day 1 attend to most strongly after a late storm pulse?</p>
+          </div>
+          <div class="prompt-card">
+            <strong>Prompt 2</strong>
+            <p>How would the decoder mask change if you predicted 14 days instead of 7 days?</p>
+          </div>
+          <div class="prompt-card">
+            <strong>Prompt 3</strong>
+            <p>What hydrological information is lost if positional encoding is removed from the source sequence?</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel teacher-forcing-panel">
+        <div class="panel-header">
+          <h2>Teacher forcing vs autoregressive generation</h2>
+          <p>One concept, two operating modes.</p>
+        </div>
+        <div class="teacher-grid">
+          <div class="teacher-card">
+            <h3>Training mode</h3>
+            <p>
+              The decoder receives the shifted target sequence in parallel. A causal mask blocks illegal future lookups,
+              but all seven positions are processed in one batched pass.
+            </p>
+          </div>
+          <div class="teacher-card">
+            <h3>Inference mode</h3>
+            <p>
+              The decoder has only what it has already generated. Forecast day <span id="teacherStep">1</span> can use
+              source memory plus generated target history up to that step, so uncertainty can accumulate across the horizon.
+            </p>
+          </div>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

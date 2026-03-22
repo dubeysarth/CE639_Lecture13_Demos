@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CE Transformer Variants Decision Lab</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero card">
+      <div class="hero-copy">
+        <p class="eyebrow">Civil Engineering Forecasting Decision Lab</p>
+        <h1>Efficient Transformer Variants for Long Time Series</h1>
+        <p class="hero-text">
+          In streamflow-style forecasting, the model choice changes when the sequence becomes long,
+          the horizon becomes multi-step, seasonality becomes dominant, or deployment latency becomes strict.
+          This lab turns that lecture idea into a decision aid: adjust the forecasting regime and inspect when to
+          prefer <strong>LSTM + attention</strong>, <strong>Transformer</strong>, <strong>PatchTST</strong>, <strong>Informer</strong>, or <strong>Autoformer</strong>.
+        </p>
+        <div class="hero-tags">
+          <span class="tag">CE time-series focus</span>
+          <span class="tag">Deterministic teaching logic</span>
+          <span class="tag">Dense O(T²) vs sparse O(T log T)</span>
+        </div>
+      </div>
+      <div class="hero-side">
+        <div class="formula-box">
+          <div class="formula-title">Lecture anchor</div>
+          <div class="formula-row">
+            <span class="formula-chip">Transformer: O(T²)</span>
+            <span class="formula-chip">Informer / Autoformer: O(T log T)</span>
+          </div>
+          <div class="formula-row">
+            <span class="formula-chip">PatchTST: O((T / p)²)</span>
+            <span class="formula-chip">LSTM + attn: recurrent + selective readout</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="controls card">
+      <div class="section-head">
+        <h2>Forecasting Regime Controls</h2>
+        <p>Shift the regime and watch the recommendation change.</p>
+      </div>
+      <div class="controls-grid">
+        <label class="control-field span-2">
+          <div class="label-row">
+            <span>History length <strong>T</strong></span>
+            <span class="value-badge" id="historyValue">512 steps</span>
+          </div>
+          <input id="historyRange" type="range" min="48" max="4096" step="16" value="512" />
+          <div class="hint-row">
+            <span>short memory</span>
+            <span>very long context</span>
+          </div>
+        </label>
+
+        <label class="control-field span-2">
+          <div class="label-row">
+            <span>Forecast horizon</span>
+            <span class="value-badge" id="horizonValue">48 steps</span>
+          </div>
+          <input id="horizonRange" type="range" min="6" max="720" step="6" value="48" />
+          <div class="hint-row">
+            <span>short horizon</span>
+            <span>long multi-step forecast</span>
+          </div>
+        </label>
+
+        <label class="control-field">
+          <div class="label-row">
+            <span>Data size</span>
+          </div>
+          <select id="dataSizeSelect">
+            <option value="small">Small</option>
+            <option value="medium" selected>Medium</option>
+            <option value="large">Large</option>
+          </select>
+          <div class="microcopy">Representative training scale for the teaching examples.</div>
+        </label>
+
+        <label class="control-field">
+          <div class="label-row">
+            <span>Latency requirement</span>
+          </div>
+          <select id="latencySelect">
+            <option value="strict">Strict</option>
+            <option value="balanced" selected>Balanced</option>
+            <option value="relaxed">Relaxed</option>
+          </select>
+          <div class="microcopy">Use strict when deployment has tight response budgets.</div>
+        </label>
+
+        <label class="control-field">
+          <div class="label-row">
+            <span>Interpretability importance</span>
+            <span class="value-badge" id="interpretValue">60 / 100</span>
+          </div>
+          <input id="interpretRange" type="range" min="0" max="100" step="1" value="60" />
+          <div class="hint-row">
+            <span>low</span>
+            <span>high</span>
+          </div>
+        </label>
+
+        <label class="control-field span-2 regime-field">
+          <div class="label-row">
+            <span>Dominant temporal regime</span>
+            <span class="value-badge" id="regimeValue">leans periodic</span>
+          </div>
+          <input id="regimeRange" type="range" min="-100" max="100" step="1" value="20" />
+          <div class="hint-row">
+            <span>event-dominant</span>
+            <span>periodicity-dominant</span>
+          </div>
+          <div class="regime-caption">Negative values favor storm pulses and abrupt transients; positive values favor seasonal or repeated motifs.</div>
+        </label>
+      </div>
+    </section>
+
+    <section class="metrics-grid">
+      <article class="metric-card card">
+        <div class="metric-label">Estimated full attention matrix</div>
+        <div class="metric-value" id="matrixValue">262,144 cells</div>
+        <div class="metric-sub" id="matrixSub">512 × 512, about 1.00 MB per head in float32</div>
+      </article>
+      <article class="metric-card card">
+        <div class="metric-label">Rough complexity class</div>
+        <div class="metric-value" id="complexityValue">O((T / p)²)</div>
+        <div class="metric-sub" id="complexitySub">Patch-level attention instead of every timestep attending to every timestep</div>
+      </article>
+      <article class="metric-card card metric-emphasis">
+        <div class="metric-label">Recommended architecture</div>
+        <div class="metric-value" id="recommendValue">PatchTST</div>
+        <div class="metric-sub" id="recommendSub">Long medium-data forecasting with manageable cost</div>
+      </article>
+      <article class="metric-card card">
+        <div class="metric-label">Confidence</div>
+        <div class="metric-value" id="confidenceValue">82%</div>
+        <div class="metric-sub" id="confidenceSub">High: the regime clearly favors one family</div>
+      </article>
+    </section>
+
+    <section class="main-grid">
+      <article class="card architecture-panel span-2">
+        <div class="section-head">
+          <h2>Architecture Comparison Strip</h2>
+          <p>Each card expresses the same forecasting regime through a different architectural bias.</p>
+        </div>
+        <div id="architectureStrip" class="architecture-strip"></div>
+      </article>
+
+      <article class="card memory-panel">
+        <div class="section-head compact">
+          <h2>Memory & Computation</h2>
+          <p>Deterministic relative cost illustration.</p>
+        </div>
+        <div class="formula-stack">
+          <span class="formula-chip">Dense attention = T × T</span>
+          <span class="formula-chip">Sparse long-sequence idea = T log₂T</span>
+        </div>
+        <div class="scaling-callout" id="scalingCallout"></div>
+        <div id="costBars" class="cost-bars"></div>
+      </article>
+
+      <article class="card explanation-panel">
+        <div class="section-head compact">
+          <h2>Why this model is recommended</h2>
+          <p>Rule-based reasoning aligned with the lecture.</p>
+        </div>
+        <ul id="whyList" class="explanation-list"></ul>
+      </article>
+
+      <article class="card hydro-panel">
+        <div class="section-head compact">
+          <h2>Hydrology interpretation</h2>
+          <p>Translate the architecture choice back into CE forecasting language.</p>
+        </div>
+        <div id="hydroText" class="hydro-copy"></div>
+      </article>
+
+      <article class="card visuals-panel span-2">
+        <div class="section-head">
+          <h2>Compact Variant Visuals</h2>
+          <p>These are schematic, not trained-model outputs.</p>
+        </div>
+        <div class="visuals-grid">
+          <div class="mini-visual">
+            <div class="mini-title">PatchTST patching</div>
+            <div id="patchVisual" class="svg-holder"></div>
+            <p class="mini-caption" id="patchCaption"></p>
+          </div>
+          <div class="mini-visual">
+            <div class="mini-title">Informer ProbSparse idea</div>
+            <div id="informerVisual" class="svg-holder"></div>
+            <p class="mini-caption" id="informerCaption"></p>
+          </div>
+          <div class="mini-visual">
+            <div class="mini-title">Autoformer decomposition + autocorrelation</div>
+            <div id="autoformerVisual" class="svg-holder"></div>
+            <p class="mini-caption" id="autoformerCaption"></p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="bottom-grid">
+      <article class="card scenarios-panel span-2">
+        <div class="section-head">
+          <h2>Curated Civil-Engineering Scenarios</h2>
+          <p>Click once to load a full preset and inspect why the model family changes.</p>
+        </div>
+        <div id="scenarioGrid" class="scenario-grid"></div>
+      </article>
+
+      <article class="card caution-panel">
+        <div class="section-head compact">
+          <h2>When not to use transformers</h2>
+          <p>Important lecture caveat.</p>
+        </div>
+        <ul class="caution-list">
+          <li>If the sequence is short and the dataset is limited, a compact recurrent model can be easier to train and deploy.</li>
+          <li>If forecasts must run on highly constrained edge hardware, linear or compact recurrent baselines may be better.</li>
+          <li>If the signal is dominated by process knowledge and there is little data, hybrid or physically informed models may matter more than architecture scale.</li>
+          <li>If interpretability must be strongly causal and operationally auditable, simpler baselines can sometimes be the safer first choice.</li>
+        </ul>
+      </article>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

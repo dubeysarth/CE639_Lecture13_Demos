@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Causal Masking &amp; Autoregressive Decoding Debugger</title>
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">Lecture 13 — Demo 5</p>
+                <h1>Causal Masking &amp; Autoregressive Decoding</h1>
+                <p class="hero-copy">
+                    The Transformer decoder generates one day's streamflow at a time.
+                    <strong>Causal masking</strong> ensures each prediction uses only past data —
+                    exactly like physical causality in rainfall-runoff processes.
+                    Step through the decoding process or play the animation.
+                </p>
+                <div class="hero-story">
+                    <div class="story-label">Why Causal Masking?</div>
+                    <div class="story-copy">
+                        Without masking, the decoder at training position t+3 could attend to t+5 —
+                        learning a trivial shortcut rather than the underlying rainfall-runoff dynamics.
+                        The causal mask blocks all future positions (upper triangle = −∞), forcing the
+                        model to predict each day from past information only.
+                    </div>
+                </div>
+            </div>
+            <div class="hero-note">
+                <div class="note-pill">Step-by-step playback</div>
+                <div class="note-pill">Live mask matrix</div>
+                <div class="note-pill">No libraries</div>
+                <div class="note-pill">Lecture 13 · Slides 28, 43–48</div>
+            </div>
+        </header>
+
+        <!-- Top strip: formula + controls -->
+        <section class="top-strip">
+            <section class="formula-card">
+                <div class="formula-header">
+                    <div id="stepBadge" class="step-badge">Initializing</div>
+                    <div id="formulaMode" class="formula-mode">Causal Mask</div>
+                </div>
+                <div id="formulaEquation" class="formula-equation"></div>
+                <div id="formulaNote" class="formula-note"></div>
+            </section>
+            <section class="controls-card2">
+                <div class="button-row">
+                    <button id="resetBtn" type="button">Reset</button>
+                    <button id="prevBtn" type="button" class="secondary">Prev</button>
+                    <button id="playBtn" type="button">Play</button>
+                    <button id="nextBtn" type="button" class="secondary">Next</button>
+                </div>
+                <div class="slider-block">
+                    <label for="stepSlider">Timeline</label>
+                    <input id="stepSlider" type="range" min="0" max="0" value="0" />
+                </div>
+                <div class="speed-block">
+                    <label for="speedSelect">Autoplay speed</label>
+                    <select id="speedSelect">
+                        <option value="1800">Very slow</option>
+                        <option value="1200" selected>Slow</option>
+                        <option value="700">Medium</option>
+                        <option value="350">Fast</option>
+                    </select>
+                </div>
+                <div class="param-block">
+                    <label>Forecast horizon T &nbsp;<span id="tVal" class="param-val">6</span></label>
+                    <input id="tSlider" type="range" min="3" max="12" step="1" value="6" />
+                </div>
+                <div class="param-block">
+                    <label>History context L &nbsp;<span id="lVal" class="param-val">12</span></label>
+                    <input id="lSlider" type="range" min="6" max="20" step="2" value="12" />
+                </div>
+            </section>
+        </section>
+
+        <!-- Metrics -->
+        <section class="metrics-grid">
+            <article class="metric-card">
+                <div class="metric-label">Current Step</div>
+                <div id="metricStep" class="metric-value">0</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Positions Unmasked</div>
+                <div id="metricUnmasked" class="metric-value">0</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Positions Masked (−∞)</div>
+                <div id="metricMasked" class="metric-value">0</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Forecast Generated</div>
+                <div id="metricForecast" class="metric-value">0 / 0</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Cross-attn History Keys</div>
+                <div id="metricHistory" class="metric-value">—</div>
+            </article>
+        </section>
+
+        <!-- Main -->
+        <section class="main-grid">
+            <!-- Left: mask + forecast chart -->
+            <article class="panel main-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Decoder Attention Mask</h2>
+                        <p id="maskCaption" class="panel-copy"></p>
+                    </div>
+                    <div class="legend">
+                        <span><i class="legend-dot unmasked"></i>Attended (weight shown)</span>
+                        <span><i class="legend-dot blocked"></i>Blocked (−∞)</span>
+                        <span><i class="legend-dot current"></i>Currently generating</span>
+                    </div>
+                </div>
+                <svg id="maskSvg" viewBox="0 0 540 340" class="main-svg"></svg>
+
+                <div class="panel-header" style="margin-top:18px">
+                    <div>
+                        <h2>Streamflow Forecast</h2>
+                        <p class="panel-copy">History (blue) + forecast filling in step by step (orange = generated,
+                            dashed = future).</p>
+                    </div>
+                </div>
+                <svg id="forecastSvg" viewBox="0 0 540 200" class="main-svg"></svg>
+            </article>
+
+            <!-- Right: detail + math -->
+            <article class="panel analysis-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Step Explanation</h2>
+                        <p class="panel-copy">What happens at this decoding step.</p>
+                    </div>
+                </div>
+                <div id="stepSummary" class="detail-copy"></div>
+
+                <div class="detail-grid">
+                    <section class="detail-card">
+                        <h3>Exact Calculation</h3>
+                        <div id="exactMath" class="detail-copy"></div>
+                    </section>
+                    <section class="detail-card">
+                        <h3>Cross-Attention to History</h3>
+                        <div id="crossAttn" class="detail-copy"></div>
+                    </section>
+                </div>
+
+                <!-- Math panel -->
+                <section class="detail-card math-card">
+                    <h3>Causal Mask Formula</h3>
+                    <div id="maskFormula" class="math-display"></div>
+                </section>
+
+                <!-- Interpretation -->
+                <section class="detail-card insight-card">
+                    <h3>Hydrological Insight</h3>
+                    <div id="interpretation" class="insight-copy"></div>
+                </section>
+            </article>
+        </section>
+
+        <footer class="site-footer">
+            CE 639: AI for Civil Engineering — Attention Mechanisms &amp; Transformers · Lecture 13
+        </footer>
+    </div>
+    <script src="./app.js"></script>
+</body>
+
+</html>

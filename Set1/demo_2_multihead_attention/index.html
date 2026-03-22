@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Multi-Head Attention — Head Specialization</title>
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">Lecture 13 — Demo 2</p>
+                <h1>Multi-Head Attention &amp; Head Specialization</h1>
+                <p class="hero-copy">
+                    Multiple attention heads process the same 28-day streamflow sequence <em>simultaneously</em>,
+                    each learning to focus on a different hydrological pattern — flood onset, baseflow recession,
+                    seasonal trend, and rainfall lag. Click any head panel to expand it.
+                </p>
+                <div class="hero-story">
+                    <div class="story-label">Why Multiple Heads?</div>
+                    <div class="story-copy">
+                        A single head must trade off between capturing the flash-flood spike
+                        (short-range, high-magnitude) and the slow soil-moisture memory
+                        (long-range, diffuse). With 4 heads, each head specializes on a different
+                        time-scale simultaneously — they're concatenated to form the full representation.
+                    </div>
+                </div>
+            </div>
+            <div class="hero-note">
+                <div class="note-pill">28-day streamflow</div>
+                <div class="note-pill">Up to 8 heads</div>
+                <div class="note-pill">No libraries</div>
+                <div class="note-pill">Lecture 13 · Slides 15–18</div>
+            </div>
+        </header>
+
+        <!-- Controls -->
+        <section class="controls-card">
+            <div class="controls-header">
+                <div>
+                    <h2>Controls</h2>
+                    <p class="controls-copy">Adjust number of heads, model dimension, and sequence length to see how
+                        head specialization changes.</p>
+                </div>
+                <div class="button-row">
+                    <button id="resetBtn" type="button">Reset Defaults</button>
+                </div>
+            </div>
+            <div class="controls-grid">
+                <label class="control">
+                    <span class="control-label">Number of Heads (h)</span>
+                    <span id="nHeadsValue" class="control-value">4</span>
+                    <input id="nHeadsSlider" type="range" min="1" max="8" step="1" value="4" />
+                </label>
+                <label class="control">
+                    <span class="control-label">d_model</span>
+                    <span id="dModelValue" class="control-value">64</span>
+                    <input id="dModelSlider" type="range" min="16" max="128" step="16" value="64" />
+                </label>
+                <label class="control">
+                    <span class="control-label">Sequence Length (L days)</span>
+                    <span id="seqLenValue" class="control-value">28</span>
+                    <input id="seqLenSlider" type="range" min="14" max="56" step="7" value="28" />
+                </label>
+                <label class="control">
+                    <span class="control-label">View Mode</span>
+                    <span id="viewModeValue" class="control-value">All Heads</span>
+                    <div class="segmented" role="group">
+                        <button id="viewAll" class="segmented-btn active" type="button">All Heads</button>
+                        <button id="viewConcat" class="segmented-btn" type="button">Concatenated</button>
+                    </div>
+                </label>
+            </div>
+            <div class="prompt-grid">
+                <article class="prompt-card">
+                    <div class="prompt-title">Try 1: Single vs. Multiple Heads</div>
+                    <p class="prompt-copy">Set h=1. The single head must average over all patterns. Switch to h=4 —
+                        notice each head now isolates a distinct temporal pattern (spike, recession, seasonal, lag).</p>
+                </article>
+                <article class="prompt-card">
+                    <div class="prompt-title">Try 2: Increase d_model</div>
+                    <p class="prompt-copy">Increase d_model from 16 to 128. Each head now has more capacity (d_k =
+                        d_model/h) — the attention maps sharpen and show finer structure in the flood event.</p>
+                </article>
+                <article class="prompt-card">
+                    <div class="prompt-title">Try 3: Click a Head</div>
+                    <p class="prompt-copy">Click any head panel to expand it to full size. Read the specialization label
+                        and note which days receive the highest attention weight (darkest cells).</p>
+                </article>
+            </div>
+        </section>
+
+        <!-- Metrics -->
+        <section class="metrics-grid">
+            <article class="metric-card">
+                <div class="metric-label">Heads (h)</div>
+                <div id="metricH" class="metric-value">4</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">d_k per head</div>
+                <div id="metricDk" class="metric-value">16</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Total Parameters</div>
+                <div id="metricParams" class="metric-value">—</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Head Diversity (avg entropy)</div>
+                <div id="metricDiversity" class="metric-value">—</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Attention Complexity</div>
+                <div id="metricComplexity" class="metric-value">O(L²)</div>
+            </article>
+        </section>
+
+        <!-- Main dashboard -->
+        <section class="dashboard">
+            <!-- Left: head grid -->
+            <div class="heads-col">
+                <article class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2 id="headsTitle">Attention Heads (click to expand)</h2>
+                            <p class="panel-copy" id="headsSubtitle">Each cell shows how much attention day i (row) pays
+                                to day j (col). Darker = more attention.</p>
+                        </div>
+                    </div>
+                    <div id="headsGrid" class="heads-grid"></div>
+                </article>
+            </div>
+
+            <!-- Right: detail + math -->
+            <div class="detail-col">
+                <article class="panel" id="selectedHeadPanel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Selected Head Detail</h2>
+                            <p class="panel-copy">Click a head on the left to expand it here.</p>
+                        </div>
+                    </div>
+                    <div id="selectedHeadContent" class="empty-hint">← Click any head panel</div>
+                    <svg id="expandedAttn" class="expanded-attn" viewBox="0 0 400 360" style="display:none"></svg>
+                    <div id="expandedNote" class="pipe-note" style="display:none"></div>
+                </article>
+
+                <!-- Math panel -->
+                <article class="panel math-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Math at the Current Setting</h2>
+                            <p class="panel-copy">Multi-head attention formula with live dimensions.</p>
+                        </div>
+                    </div>
+                    <div class="math-block">
+                        <div class="math-kicker">Per-Head Projection</div>
+                        <div id="mathPerHead" class="math-display"></div>
+                    </div>
+                    <div class="math-block">
+                        <div class="math-kicker">Head Attention</div>
+                        <div id="mathHeadAttn" class="math-display"></div>
+                    </div>
+                    <div class="math-block">
+                        <div class="math-kicker">Multi-Head Output</div>
+                        <div id="mathMultiHead" class="math-display"></div>
+                    </div>
+                </article>
+
+                <!-- Interpretation -->
+                <article class="panel insight-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Hydrological Insight</h2>
+                        </div>
+                    </div>
+                    <div id="interpretation" class="insight-copy"></div>
+                </article>
+            </div>
+        </section>
+
+        <footer class="site-footer">
+            CE 639: AI for Civil Engineering — Attention Mechanisms &amp; Transformers · Lecture 13
+        </footer>
+    </div>
+    <script src="./app.js"></script>
+</body>
+
+</html>

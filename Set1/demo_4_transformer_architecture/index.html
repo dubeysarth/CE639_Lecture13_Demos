@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Transformer Architecture Explorer — Streamflow Forecasting</title>
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">Lecture 13 — Demo 4</p>
+                <h1>Transformer Architecture Explorer</h1>
+                <p class="hero-copy">
+                    Click any layer block in the flow diagram to expand its formula, tensor shapes,
+                    mini-visualization, and hydrological context. Adjust the sliders to see how
+                    dimensions propagate through every layer — from raw streamflow input to the final
+                    T-step forecast.
+                </p>
+                <div class="hero-story">
+                    <div class="story-label">Data Flow Story</div>
+                    <div class="story-copy">
+                        3 hydro features (P, PET, SWF) × L historical days → embedded into d-dimensional space
+                        → self-attention links temporal dependencies → cross-attention reads history →
+                        T-day discharge forecast Q(t+1)…Q(t+T).
+                    </div>
+                </div>
+            </div>
+            <div class="hero-note">
+                <div class="note-pill">5 architectures</div>
+                <div class="note-pill">Live tensor shapes</div>
+                <div class="note-pill">No libraries</div>
+                <div class="note-pill">Lecture 13 · Slides 25–38</div>
+            </div>
+        </header>
+
+        <!-- Controls -->
+        <section class="controls-card">
+            <div class="controls-header">
+                <div>
+                    <h2>Parameters &amp; Architecture</h2>
+                    <p class="controls-copy">Adjust global parameters — all layer shapes update instantly.</p>
+                </div>
+                <div class="button-row">
+                    <button id="resetBtn" type="button">Reset Defaults</button>
+                </div>
+            </div>
+            <div class="controls-grid">
+                <label class="control">
+                    <span class="control-label">L — History (days)</span>
+                    <span id="lValue" class="control-value">96</span>
+                    <input id="lSlider" type="range" min="24" max="192" step="24" value="96" />
+                </label>
+                <label class="control">
+                    <span class="control-label">T — Horizon (days)</span>
+                    <span id="tValue" class="control-value">24</span>
+                    <input id="tSlider" type="range" min="6" max="48" step="6" value="24" />
+                </label>
+                <label class="control">
+                    <span class="control-label">d_model</span>
+                    <span id="dValue" class="control-value">64</span>
+                    <input id="dSlider" type="range" min="32" max="128" step="32" value="64" />
+                </label>
+                <label class="control">
+                    <span class="control-label">Attention Heads</span>
+                    <span id="hValue" class="control-value">4</span>
+                    <input id="hSlider" type="range" min="2" max="8" step="2" value="4" />
+                </label>
+            </div>
+            <div class="arch-tabs" id="archTabs"></div>
+            <div class="prompt-grid">
+                <article class="prompt-card">
+                    <div class="prompt-title">Try 1: Cross-Attention</div>
+                    <p class="prompt-copy">Switch to Enc-Decoder. Click the "Cross-attention" layer — see how decoder
+                        queries (T×d) attend to encoder keys (L×d). This is where the model reads historical streamflow
+                        memory.</p>
+                </article>
+                <article class="prompt-card">
+                    <div class="prompt-title">Try 2: Causal Mask</div>
+                    <p class="prompt-copy">In Decoder-Only, click "Causal self-attention". The attention matrix is
+                        lower-triangular — position i cannot see j &gt; i. This enforces physical causality in the
+                        forecast.</p>
+                </article>
+                <article class="prompt-card">
+                    <div class="prompt-title">Try 3: Scale L</div>
+                    <p class="prompt-copy">Increase L from 24 to 192. Watch the attention complexity grow as O(L²). In
+                        the Informer tab, ProbSparse reduces this to O(L log L) — critical for long streamflow records.
+                    </p>
+                </article>
+            </div>
+        </section>
+
+        <!-- Metrics -->
+        <section class="metrics-grid">
+            <article class="metric-card">
+                <div class="metric-label">Total Parameters</div>
+                <div id="metricParams" class="metric-value">—</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Attention Ops</div>
+                <div id="metricAttnOps" class="metric-value">—</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">d_k per head</div>
+                <div id="metricDk" class="metric-value">—</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">FFN dim (4×d)</div>
+                <div id="metricFFN" class="metric-value">—</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-label">Selected Layer</div>
+                <div id="metricLayer" class="metric-value">—</div>
+            </article>
+        </section>
+
+        <!-- Main dashboard -->
+        <section class="dashboard">
+            <!-- Flow diagram -->
+            <div class="flow-col">
+                <article class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Layer Flow</h2>
+                            <p class="panel-copy" id="archDesc"></p>
+                        </div>
+                    </div>
+                    <div id="flowDiagram" class="flow-diagram"></div>
+                </article>
+            </div>
+
+            <!-- Detail panel -->
+            <div class="detail-col">
+                <article class="panel detail-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2 id="detailTitle">Layer Detail</h2>
+                            <p class="panel-copy" id="detailSub">← Click any layer block to expand</p>
+                        </div>
+                    </div>
+                    <div id="detailContent">
+                        <div class="empty-hint">← Click any layer block on the left</div>
+                    </div>
+                </article>
+
+                <!-- Math panel -->
+                <article class="panel math-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Architecture Math</h2>
+                        </div>
+                    </div>
+                    <div class="math-block">
+                        <div class="math-kicker">Attention Complexity</div>
+                        <div id="mathComplexity" class="math-display"></div>
+                    </div>
+                    <div class="math-block">
+                        <div class="math-kicker">Parameter Count</div>
+                        <div id="mathParams" class="math-display"></div>
+                    </div>
+                </article>
+
+                <!-- Insight -->
+                <article class="panel insight-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Hydrological Insight</h2>
+                        </div>
+                    </div>
+                    <div id="interpretation" class="insight-copy"></div>
+                </article>
+            </div>
+        </section>
+
+        <footer class="site-footer">
+            CE 639: AI for Civil Engineering — Attention Mechanisms &amp; Transformers · Lecture 13
+        </footer>
+    </div>
+    <script src="./app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bahdanau Attention for Streamflow Forecasting</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero card">
+      <div class="hero-copy">
+        <p class="eyebrow">Encoder–decoder walkthrough</p>
+        <h1>Bahdanau Attention for Streamflow Forecasting</h1>
+        <p class="hero-subtitle">
+          A 30-day input window of rainfall, temperature, and soil moisture is used to produce a 7-day streamflow forecast.
+          The central teaching question is simple: what happens when the decoder must rely on one fixed context vector <span class="math-inline">c</span>,
+          and how does Bahdanau attention replace that bottleneck with a horizon-specific context <span class="math-inline">c<sub>t</sub></span>?
+        </p>
+        <div class="pill-row">
+          <span class="note-pill">Deterministic hydrograph</span>
+          <span class="note-pill">No external libraries</span>
+          <span class="note-pill">Built for CE 639</span>
+        </div>
+      </div>
+      <aside class="story-box">
+        <h2>Synthetic catchment story</h2>
+        <p>
+          This toy basin experiences two rainfall events: an earlier storm that wets the catchment and builds storage,
+          followed by a later, stronger storm that drives a delayed runoff pulse. Streamflow responds with lag, then recedes,
+          but the tail remains elevated because soil moisture and baseflow memory keep feeding the channel.
+        </p>
+      </aside>
+    </header>
+
+    <section class="controls card">
+      <div class="controls-left">
+        <div class="button-row">
+          <button id="resetBtn" class="action-btn secondary">Reset</button>
+          <button id="prevBtn" class="action-btn">Prev step</button>
+          <button id="playBtn" class="action-btn primary">Play</button>
+          <button id="nextBtn" class="action-btn">Next step</button>
+        </div>
+
+        <div class="slider-block">
+          <div class="label-row">
+            <label for="stepSlider">Timeline slider</label>
+            <span id="sliderReadout">Forecast day 1 of 7</span>
+          </div>
+          <input id="stepSlider" type="range" min="1" max="7" value="1" step="1" />
+          <div class="step-ticks">
+            <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls-right">
+        <div class="toggle-group">
+          <label class="switch-row">
+            <span>Show fixed bottleneck baseline</span>
+            <input id="baselineToggle" type="checkbox" checked />
+            <span class="switch-ui"></span>
+          </label>
+          <label class="switch-row">
+            <span>Show attention heatmap</span>
+            <input id="heatmapToggle" type="checkbox" checked />
+            <span class="switch-ui"></span>
+          </label>
+        </div>
+
+        <div class="slider-block compact">
+          <div class="label-row">
+            <label for="sharpnessSlider">Attention sharpness</label>
+            <span id="sharpnessReadout">1.30×</span>
+          </div>
+          <input id="sharpnessSlider" type="range" min="0.7" max="2.4" value="1.3" step="0.05" />
+        </div>
+
+        <div class="series-toggle">
+          <span class="series-label">Visible series</span>
+          <div class="segmented" id="seriesToggle">
+            <button data-series="both" class="seg-btn active">Both</button>
+            <button data-series="rain" class="seg-btn">Rainfall bars</button>
+            <button data-series="flow" class="seg-btn">Streamflow line</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="metrics-grid">
+      <article class="metric card">
+        <span class="metric-label">Current decoder step t</span>
+        <strong id="metricStep" class="metric-value">1</strong>
+      </article>
+      <article class="metric card">
+        <span class="metric-label">Most attended input day argmax<sub>j</sub> α<sub>t,j</sub></span>
+        <strong id="metricArgmax" class="metric-value">Day 28</strong>
+      </article>
+      <article class="metric card">
+        <span class="metric-label">Peak attention weight max α<sub>t,j</sub></span>
+        <strong id="metricPeak" class="metric-value">0.00</strong>
+      </article>
+      <article class="metric card">
+        <span class="metric-label">Attention entropy</span>
+        <strong id="metricEntropy" class="metric-value">0.00</strong>
+      </article>
+      <article class="metric card">
+        <span class="metric-label">Context magnitude ‖c<sub>t</sub>‖</span>
+        <strong id="metricContext" class="metric-value">0.00</strong>
+      </article>
+      <article class="metric card verdict-card">
+        <span class="metric-label">Baseline vs attention qualitative verdict</span>
+        <strong id="metricVerdict" class="metric-value verdict-text">Attention is more adaptive.</strong>
+      </article>
+    </section>
+
+    <main class="main-grid">
+      <section class="left-column">
+        <article class="panel card hydro-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Coordinated visual</p>
+              <h2>30-day hydrograph and 7-day forecast horizon</h2>
+            </div>
+            <div class="panel-note" id="hydroNote">Selected forecast day: 31</div>
+          </div>
+          <svg id="hydrographSvg" viewBox="0 0 920 470" aria-label="Hydrograph with rainfall, streamflow, attention links, and forecast horizon"></svg>
+          <div class="panel-caption">
+            Rainfall is shown as downward bars from the top axis; streamflow is shown as a line. The selected forecast day is highlighted, and its
+            attention links trace back to the most influential historical days.
+          </div>
+        </article>
+      </section>
+
+      <section class="right-column">
+        <article class="panel card heatmap-panel" id="heatmapCard">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Attention weights</p>
+              <h2>Decoder-step × input-day heatmap</h2>
+            </div>
+            <div class="panel-note" id="heatmapNote">Hover a cell to inspect α<sub>t,j</sub></div>
+          </div>
+          <svg id="heatmapSvg" viewBox="0 0 620 290" aria-label="Attention heatmap with 7 rows and 30 columns"></svg>
+          <div class="heatmap-footer" id="heatmapReadout">Hover over the heatmap to read a specific weight.</div>
+        </article>
+
+        <article class="panel card math-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Exact math at this step</p>
+              <h2>Bahdanau scoring, normalization, and context</h2>
+            </div>
+          </div>
+          <div class="equation-stack">
+            <div class="equation-line">e<sub>t,j</sub> = v<sup>T</sup> tanh(W<sub>1</sub>s<sup>(t−1)</sup> + W<sub>2</sub>h<sup>(j)</sup> + b)</div>
+            <div class="equation-line">α<sub>t,j</sub> = softmax(e<sub>t,j</sub>)</div>
+            <div class="equation-line">c<sub>t</sub> = Σ<sub>j</sub> α<sub>t,j</sub> h<sup>(j)</sup></div>
+          </div>
+          <div id="mathWorked" class="worked-box"></div>
+        </article>
+
+        <article class="panel card interpretation-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Hydrological interpretation</p>
+              <h2>Why these days matter for this horizon</h2>
+            </div>
+          </div>
+          <div id="interpretationText" class="interpretation-copy"></div>
+        </article>
+      </section>
+    </main>
+
+    <section class="bottom-grid">
+      <article class="panel card">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Step explanation</p>
+            <h2>What changes as the decoder moves forward?</h2>
+          </div>
+        </div>
+        <div id="stepExplanation" class="step-copy"></div>
+      </article>
+
+      <article class="panel card try-card">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Try this in class</p>
+            <h2>Three quick prompts for live teaching</h2>
+          </div>
+        </div>
+        <div class="try-strip">
+          <div class="try-item">
+            <strong>Step 1 vs step 6</strong>
+            <span>Ask students how the center of attention migrates from recent storm response to longer-memory storage cues.</span>
+          </div>
+          <div class="try-item">
+            <strong>Bottleneck off vs on</strong>
+            <span>Toggle the fixed context baseline and compare how one summary vector flattens horizon-specific reasoning.</span>
+          </div>
+          <div class="try-item">
+            <strong>Sharp vs diffuse attention</strong>
+            <span>Move the sharpness slider and discuss whether a catchment should focus tightly on a few days or spread weight across memory.</span>
+          </div>
+        </div>
+      </article>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

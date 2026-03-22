@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scaled Dot-Product Attention and Positional Encoding</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero panel">
+      <div class="hero-copy">
+        <p class="eyebrow">Civil Engineering Teaching Demo</p>
+        <h1>Scaled Dot-Product Attention and Positional Encoding</h1>
+        <p class="hero-subtitle">
+          Which earlier days matter for today’s streamflow? This lab turns self-attention into a
+          hydrology story: storm pulses, wet catchments, and why sequence order cannot be ignored.
+        </p>
+        <div class="pill-row">
+          <span class="pill">Deterministic toy matrices</span>
+          <span class="pill">No external libraries</span>
+          <span class="pill">Built for teaching</span>
+        </div>
+      </div>
+
+      <aside class="story-box">
+        <h2>Why order matters in time series</h2>
+        <p>
+          Two days with the same rainfall and soil-moisture values are not interchangeable when one
+          happened before the storm peak and the other happened after it. Self-attention can compare
+          all days to all days, but it needs positional information to know <em>when</em> each day occurred.
+        </p>
+        <div class="equation-block" id="heroEquation">
+          Attention(Q,K,V) = softmax(QK<sup>T</sup> / √d<sub>k</sub>) V
+        </div>
+      </aside>
+    </header>
+
+    <section class="controls panel">
+      <div class="section-header">
+        <div>
+          <h2>Controls</h2>
+          <p>Every control changes the math, the diagrams, and the interpretation below.</p>
+        </div>
+        <button id="resetBtn" class="button primary">Reset</button>
+      </div>
+
+      <div class="control-grid">
+        <label class="control-card checkbox-card">
+          <span class="control-label">Use scaling 1/√d<sub>k</sub></span>
+          <input type="checkbox" id="scalingToggle" checked />
+          <span class="switch"></span>
+        </label>
+
+        <label class="control-card checkbox-card">
+          <span class="control-label">Add positional encoding</span>
+          <input type="checkbox" id="positionToggle" checked />
+          <span class="switch"></span>
+        </label>
+
+        <button id="headToggle" class="control-card mode-button" type="button" aria-pressed="false">
+          <span class="control-label">Heads</span>
+          <strong id="headToggleText">Show 1 head</strong>
+        </button>
+
+        <button id="swapBtn" class="control-card mode-button" type="button" aria-pressed="false">
+          <span class="control-label">Permutation</span>
+          <strong id="swapBtnText">Swap two days</strong>
+        </button>
+
+        <label class="control-card slider-card">
+          <span class="control-label">d<sub>k</sub> <strong id="dkValue">8</strong></span>
+          <input type="range" id="dkSlider" min="2" max="16" step="1" value="8" />
+          <span class="slider-caption">Larger d<sub>k</sub> makes raw dot products grow.</span>
+        </label>
+
+        <label class="control-card slider-card">
+          <span class="control-label">Softmax temperature <strong id="tempValue">1.00</strong></span>
+          <input type="range" id="tempSlider" min="0.60" max="2.40" step="0.05" value="1.00" />
+          <span class="slider-caption">Lower temperature makes attention sharper.</span>
+        </label>
+
+        <label class="control-card select-card select-span">
+          <span class="control-label">Mode</span>
+          <select id="modeSelect">
+            <option value="toy">Toy 2x2 matrix example</option>
+            <option value="sequence" selected>6-day self-attention sequence</option>
+            <option value="permutation">Permutation test</option>
+          </select>
+          <span class="slider-caption">Switches the teaching focus without hiding the synchronized views.</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="metrics">
+      <article class="metric-card panel">
+        <span class="metric-label">d<sub>k</sub></span>
+        <strong id="metricDk">8</strong>
+      </article>
+      <article class="metric-card panel">
+        <span class="metric-label">Max score before softmax</span>
+        <strong id="metricScore">0.00</strong>
+      </article>
+      <article class="metric-card panel">
+        <span class="metric-label">Max attention weight</span>
+        <strong id="metricWeight">0.00</strong>
+      </article>
+      <article class="metric-card panel">
+        <span class="metric-label">Output variance across tokens</span>
+        <strong id="metricVariance">0.00</strong>
+      </article>
+      <article class="metric-card panel">
+        <span class="metric-label">Order recoverable?</span>
+        <strong id="metricOrder">Yes</strong>
+      </article>
+      <article class="metric-card panel">
+        <span class="metric-label">Selected mode</span>
+        <strong id="metricMode">6-day self-attention sequence</strong>
+      </article>
+    </section>
+
+    <main class="main-grid">
+      <section class="panel panel-a" id="panelA">
+        <div class="panel-heading">
+          <div>
+            <h2>Panel A · Matrix math</h2>
+            <p>Live Q, K, V, score, softmax, and output matrices for the current setting.</p>
+          </div>
+          <div class="mini-toggle-group" id="headTabs">
+            <button class="mini-toggle active" data-head="0" type="button">Head 1</button>
+            <button class="mini-toggle" data-head="1" type="button">Head 2</button>
+          </div>
+        </div>
+        <div class="matrix-status" id="matrixStatus"></div>
+        <div class="matrix-grid">
+          <div class="matrix-card">
+            <h3>Q</h3>
+            <div id="matrixQ" class="matrix-scroll"></div>
+          </div>
+          <div class="matrix-card">
+            <h3>K</h3>
+            <div id="matrixK" class="matrix-scroll"></div>
+          </div>
+          <div class="matrix-card">
+            <h3>V</h3>
+            <div id="matrixV" class="matrix-scroll"></div>
+          </div>
+          <div class="matrix-card">
+            <h3>S = QK<sup>T</sup></h3>
+            <div id="matrixS" class="matrix-scroll"></div>
+          </div>
+          <div class="matrix-card">
+            <h3 id="scaledScoreTitle">S / √d<sub>k</sub></h3>
+            <div id="matrixScaled" class="matrix-scroll"></div>
+          </div>
+          <div class="matrix-card">
+            <h3>A = row-wise softmax</h3>
+            <div id="matrixA" class="matrix-scroll"></div>
+          </div>
+          <div class="matrix-card matrix-card-wide">
+            <h3>O = AV</h3>
+            <div id="matrixO" class="matrix-scroll"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel-b" id="panelB">
+        <div class="panel-heading">
+          <div>
+            <h2>Panel B · Token interaction view</h2>
+            <p>Hover or click a day. The selected query day sends attention to other days in the sequence.</p>
+          </div>
+          <div class="token-chip" id="selectedTokenChip">Selected query: Day 4</div>
+        </div>
+        <div id="interactionWrap" class="interaction-wrap"></div>
+        <div id="interactionNote" class="panel-note"></div>
+      </section>
+
+      <section class="panel panel-c" id="panelC">
+        <div class="panel-heading">
+          <div>
+            <h2>Panel C · Permutation invariance experiment</h2>
+            <p>
+              Original sequence versus a version where two days are swapped. Without positional encoding,
+              self-attention only permutes outputs; with positional encoding, the model senses that the order changed.
+            </p>
+          </div>
+        </div>
+        <div class="perm-layout">
+          <div class="perm-column">
+            <h3>Original order</h3>
+            <div id="permOriginal" class="perm-sequence"></div>
+          </div>
+          <div class="perm-column">
+            <h3>Swapped order</h3>
+            <div id="permSwapped" class="perm-sequence"></div>
+          </div>
+        </div>
+        <div class="perm-diff-card">
+          <div class="diff-header">
+            <h3>Difference after undoing the swap</h3>
+            <span id="permSummaryBadge" class="summary-badge">Outputs change meaningfully</span>
+          </div>
+          <div id="permDiffBars" class="diff-bars"></div>
+          <p id="permInterpretation" class="panel-note"></p>
+        </div>
+      </section>
+
+      <section class="panel panel-d" id="panelD">
+        <div class="panel-heading">
+          <div>
+            <h2>Panel D · Positional encoding heatmap</h2>
+            <p>Sinusoidal positional encoding for the current sequence length and d<sub>k</sub>.</p>
+          </div>
+          <div class="token-chip" id="peRowChip">Highlighted row: Day 4</div>
+        </div>
+        <div class="heatmap-wrap">
+          <canvas id="peCanvas" width="920" height="320"></canvas>
+        </div>
+        <div class="panel-note" id="peNote"></div>
+      </section>
+    </main>
+
+    <section class="bottom-grid">
+      <article class="panel explanation-card">
+        <h2>What the current setting means</h2>
+        <div id="settingMeaning"></div>
+      </article>
+
+      <article class="panel explanation-card">
+        <h2>Equation focus</h2>
+        <div id="equationFocus"></div>
+      </article>
+    </section>
+
+    <section class="panel class-strip">
+      <h2>Try this in class</h2>
+      <div class="prompt-strip" id="classPrompts"></div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

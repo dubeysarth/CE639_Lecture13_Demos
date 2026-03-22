@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scaled Dot-Product Attention Calculator</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Lecture 13 — Demo 1</p>
+          <h1>Scaled Dot-Product Attention Calculator</h1>
+          <p class="hero-copy">
+            See exactly how <strong>Q</strong>, <strong>K</strong>, and <strong>V</strong> matrices
+            produce attention weights. Click any cell to edit its value, then watch each step of the
+            pipeline recompute instantly. The demo uses a 4-day streamflow window encoding
+            <em>precipitation (P), potential evapotranspiration (PET), and soil wetness fraction (SWF)</em>.
+          </p>
+          <div class="hero-story">
+            <div class="story-label">Hydrological Setup</div>
+            <div class="story-copy">
+              Each row of Q, K, V represents one time step (Day 1–4). The three columns encode
+              hydro-meteorological features. Day 4 is the <strong>query</strong> — the model asks:
+              "which past days are most relevant for forecasting today's discharge?"
+            </div>
+          </div>
+        </div>
+        <div class="hero-note">
+          <div class="note-pill">Interactive matrices</div>
+          <div class="note-pill">Live pipeline</div>
+          <div class="note-pill">No libraries</div>
+          <div class="note-pill">Lecture 13 · Slides 7–14</div>
+        </div>
+      </header>
+
+      <!-- Controls -->
+      <section class="controls-card">
+        <div class="controls-header">
+          <div>
+            <h2>Controls</h2>
+            <p class="controls-copy">Switch attention type and scaling, or reset to default hydrological values.</p>
+          </div>
+          <div class="button-row">
+            <button id="resetBtn" type="button">Reset Defaults</button>
+            <button id="randomBtn" type="button" class="secondary">Randomize</button>
+          </div>
+        </div>
+        <div class="controls-grid">
+          <label class="control">
+            <span class="control-label">d_k (dimension per head)</span>
+            <span id="dkValue" class="control-value">3</span>
+            <input id="dkSlider" type="range" min="1" max="8" step="1" value="3" />
+          </label>
+          <label class="control">
+            <span class="control-label">Temperature (1/√d_k scale)</span>
+            <span id="tempValue" class="control-value">ON</span>
+            <div class="segmented" role="group">
+              <button id="scaleOn" class="segmented-btn active" type="button">Scaled (√d_k)</button>
+              <button id="scaleOff" class="segmented-btn" type="button">Unscaled</button>
+            </div>
+          </label>
+          <label class="control">
+            <span class="control-label">Attention Mode</span>
+            <span id="modeValue" class="control-value">Dot-Product</span>
+            <div class="segmented" role="group">
+              <button id="modeDot" class="segmented-btn active" type="button">Dot-Product</button>
+              <button id="modeBah" class="segmented-btn" type="button">Bahdanau</button>
+            </div>
+          </label>
+          <label class="control">
+            <span class="control-label">Query Row</span>
+            <span id="qRowValue" class="control-value">Day 4</span>
+            <input id="qRowSlider" type="range" min="0" max="3" step="1" value="3" />
+          </label>
+        </div>
+        <div class="prompt-grid">
+          <article class="prompt-card">
+            <div class="prompt-title">Try 1: High SWF Day</div>
+            <p class="prompt-copy">Set Day 1 SWF (column 2) to 0.9 and Day 4 SWF to 0.9. Watch Day 4's query strongly attend to Day 1 — similar soil-moisture states are linked.</p>
+          </article>
+          <article class="prompt-card">
+            <div class="prompt-title">Try 2: Remove Scaling</div>
+            <p class="prompt-copy">Toggle <em>Unscaled</em>. The raw dot products are large, so softmax saturates — one weight dominates and the others collapse near zero.</p>
+          </article>
+          <article class="prompt-card">
+            <div class="prompt-title">Try 3: Bahdanau Mode</div>
+            <p class="prompt-copy">Switch to <em>Bahdanau</em>. Additive attention uses a learned vector <strong>v</strong> to score each alignment — notice how the weights differ from dot-product.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Metric cards -->
+      <section class="metrics-grid">
+        <article class="metric-card">
+          <div class="metric-label">d_k</div>
+          <div id="metricDk" class="metric-value">3</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">Scale Factor 1/√d_k</div>
+          <div id="metricScale" class="metric-value">0.577</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">Max Attention Weight</div>
+          <div id="metricMaxAttn" class="metric-value">—</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">Attention Entropy</div>
+          <div id="metricEntropy" class="metric-value">—</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">Attended Output Norm</div>
+          <div id="metricNorm" class="metric-value">—</div>
+        </article>
+      </section>
+
+      <!-- Main dashboard -->
+      <section class="dashboard">
+        <!-- Left: matrix editors -->
+        <div class="matrix-col">
+          <article class="panel mat-panel" id="panelQ">
+            <div class="panel-header">
+              <div>
+                <h2>Q &nbsp;—&nbsp; Query Matrix</h2>
+                <p class="panel-copy">Each row = one time-step's query vector. Click a cell to edit.</p>
+              </div>
+              <div class="mat-legend">
+                <span class="mleg-col" style="background:#378ADD"></span>P
+                <span class="mleg-col" style="background:#1D9E75"></span>PET
+                <span class="mleg-col" style="background:#EF9F27"></span>SWF
+              </div>
+            </div>
+            <div id="matQ" class="matrix-grid"></div>
+          </article>
+          <article class="panel mat-panel" id="panelK">
+            <div class="panel-header">
+              <div>
+                <h2>K &nbsp;—&nbsp; Key Matrix</h2>
+                <p class="panel-copy">Represents what each time-step "offers" for matching.</p>
+              </div>
+            </div>
+            <div id="matK" class="matrix-grid"></div>
+          </article>
+          <article class="panel mat-panel" id="panelV">
+            <div class="panel-header">
+              <div>
+                <h2>V &nbsp;—&nbsp; Value Matrix</h2>
+                <p class="panel-copy">What gets retrieved when attention weight is high.</p>
+              </div>
+            </div>
+            <div id="matV" class="matrix-grid"></div>
+          </article>
+        </div>
+
+        <!-- Right: pipeline visualization -->
+        <div class="pipeline-col">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Attention Pipeline</h2>
+                <p class="panel-copy">Step-by-step computation for the selected query row.</p>
+              </div>
+            </div>
+            <div class="pipeline-steps" id="pipelineSteps"></div>
+          </article>
+
+          <!-- Math panel -->
+          <article class="panel math-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Math at the Current Setting</h2>
+                <p class="panel-copy">Equations with live numerical values.</p>
+              </div>
+            </div>
+            <div class="math-block">
+              <div class="math-kicker">Score Computation</div>
+              <div id="mathScore" class="math-display"></div>
+            </div>
+            <div class="math-block" id="mathScaleBlock">
+              <div class="math-kicker">Scaling</div>
+              <div id="mathScale" class="math-display"></div>
+            </div>
+            <div class="math-block">
+              <div class="math-kicker">Softmax → Attention Weights</div>
+              <div id="mathSoftmax" class="math-display"></div>
+            </div>
+            <div class="math-block">
+              <div class="math-kicker">Attended Output</div>
+              <div id="mathOutput" class="math-display"></div>
+            </div>
+          </article>
+
+          <!-- Interpretation -->
+          <article class="panel insight-panel">
+            <div class="panel-header">
+              <div><h2>Hydrological Insight</h2></div>
+            </div>
+            <div id="interpretation" class="insight-copy"></div>
+          </article>
+        </div>
+      </section>
+
+      <footer class="site-footer">
+        CE 639: AI for Civil Engineering — Attention Mechanisms &amp; Transformers · Lecture 13
+      </footer>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+</html>
